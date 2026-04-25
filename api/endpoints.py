@@ -1,6 +1,4 @@
-"""
-endpoints.py — route handlers for the OCR pipeline API.
-"""
+# api/endpoints.py
 import json
 import os
 import tempfile
@@ -16,37 +14,33 @@ from api.schemas import BulkUploadResult, ErrorResponse, LicenseResult, ResultSu
 router = APIRouter()
 
 
-@router.post("/upload", response_model=LicenseResult,
-             summary="Upload a single license image")
+@router.post("/upload", response_model=LicenseResult, summary="Upload a single license image",
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
 async def upload_license(file: UploadFile = File(...)):
     suffix = Path(file.filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400,
             detail=f"File type '{suffix}' not supported. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}")
-
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:
         tmp.write(await file.read()); tmp.flush(); tmp.close()
         try:
             result = process_license(tmp.name)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Pipeline error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Pipeline error: {str(e)}") from e
         save_result(file.filename, result)
         return result
     finally:
         os.unlink(tmp.name)
 
 
-@router.post("/upload/bulk", response_model=BulkUploadResult,
-             summary="Upload multiple license images at once")
+@router.post("/upload/bulk", response_model=BulkUploadResult, summary="Upload multiple images")
 async def upload_bulk(files: List[UploadFile] = File(...)):
     if not files:
         raise HTTPException(status_code=400, detail="No files provided.")
     if len(files) > 50:
         raise HTTPException(status_code=400, detail="Maximum batch size is 50 files.")
-
-    results = []; errors = []; skipped = []
-
+    results: List[dict] = []; errors: List[dict] = []; skipped: List[dict] = []
     for file in files:
         suffix = Path(file.filename).suffix.lower()
         if suffix not in ALLOWED_EXTENSIONS:
@@ -64,13 +58,11 @@ async def upload_bulk(files: List[UploadFile] = File(...)):
             errors.append({"filename": file.filename, "error": str(e)})
         finally:
             os.unlink(tmp.name)
-
-    return BulkUploadResult(total=len(files), succeeded=len(results),
-        failed=len(errors), skipped=len(skipped),
-        results=results, errors=errors, skipped_files=skipped)
+    return BulkUploadResult(total=len(files), succeeded=len(results), failed=len(errors),
+        skipped=len(skipped), results=results, errors=errors, skipped_files=skipped)
 
 
-@router.get("/results", response_model=List[ResultSummary], summary="List all results")
+@router.get("/results", response_model=List[ResultSummary])
 async def list_results():
     output_path = Path(OUTPUT_FOLDER)
     if not output_path.exists():
@@ -80,12 +72,10 @@ async def list_results():
         try:
             with open(json_file, encoding="utf-8") as f:
                 data = json.load(f)
-            summaries.append(ResultSummary(
-                filename=json_file.name,
+            summaries.append(ResultSummary(filename=json_file.name,
                 processed_at=data.get("processed_at"),
                 status=data.get("validation", {}).get("status"),
-                full_name=data.get("extracted_fields", {}).get("full_name"),
-            ))
+                full_name=data.get("extracted_fields", {}).get("full_name")))
         except (json.JSONDecodeError, KeyError):
             summaries.append(ResultSummary(filename=json_file.name,
                 processed_at=None, status="error", full_name=None))

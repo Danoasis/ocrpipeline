@@ -1,0 +1,51 @@
+# =============================================================================
+# ruff.toml — Ruff linter configuration
+# =============================================================================
+#
+# Ruff is a fast Python linter that replaces flake8, isort, and parts of pylint.
+# This file tells ruff which rules to enforce and which to ignore.
+#
+# Rules reference: https://docs.astral.sh/ruff/rules/
+#
+# =============================================================================
+
+# Target Python version — must match Dockerfile
+target-version = "py311"
+
+# Maximum line length before ruff flags it
+line-length = 100
+
+# Folders to skip entirely
+exclude = [
+    ".git",
+    ".ruff_cache",
+    "__pycache__",
+    "venv",
+    "terraform",   # .tf files aren't Python
+    "ansible",     # .yml files aren't Python
+]
+
+[lint]
+# Rule sets to enable:
+#   E  = pycodestyle errors
+#   F  = pyflakes (undefined names, unused imports)
+#   I  = isort (import ordering)
+#   W  = pycodestyle warnings
+#   UP = pyupgrade (modernise Python syntax)
+select = ["E", "F", "I", "W", "UP"]
+
+# Rules to ignore globally:
+ignore = [
+    "E501",   # line too long — handled by formatter, not linter
+    "UP007",  # use X | Y for union types — we keep Optional for clarity in schemas
+]
+
+# Per-file ignores: some files have legitimate reasons to break rules
+[lint.per-file-ignores]
+"tests/*" = [
+    "F401",   # unused imports in tests (fixtures imported but not called directly)
+]
+"api/schemas.py" = [
+    "UP006",  # use list/dict instead of List/Dict — Pydantic v1 still needs these
+    "UP035",  # import from typing — same reason
+]
