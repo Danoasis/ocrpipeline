@@ -1,16 +1,17 @@
 """
 schemas.py — Pydantic models for request/response shapes.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
 from pydantic import BaseModel, Field
 
 
 class ExtractedFields(BaseModel):
-    full_name:       Optional[str] = Field(None, example="JOHN DOE")
-    license_number:  Optional[str] = Field(None, example="D1234567")
-    date_of_birth:   Optional[str] = Field(None, example="1990-05-15")
-    expiration_date: Optional[str] = Field(None, example="2027-05-15")
-    license_class:   Optional[str] = Field(None, example="C", alias="class")
+    full_name:       str | None = Field(None, example="JOHN DOE")
+    license_number:  str | None = Field(None, example="D1234567")
+    date_of_birth:   str | None = Field(None, example="1990-05-15")
+    expiration_date: str | None = Field(None, example="2027-05-15")
+    license_class:   str | None = Field(None, example="C", alias="class")
 
     class Config:
         populate_by_name = True
@@ -18,7 +19,7 @@ class ExtractedFields(BaseModel):
 
 class ValidationResult(BaseModel):
     status:         str           = Field(..., example="valid")
-    days_remaining: Optional[int] = Field(None, example=418)
+    days_remaining: int | None = Field(None, example=418)
     reason:         str           = Field(..., example="Valid for 418 more days.")
 
 
@@ -31,9 +32,9 @@ class LicenseResult(BaseModel):
 
 class ResultSummary(BaseModel):
     filename:     str           = Field(..., example="license_01.json")
-    processed_at: Optional[str] = Field(None)
-    status:       Optional[str] = Field(None, example="valid")
-    full_name:    Optional[str] = Field(None, example="JOHN DOE")
+    processed_at: str | None = Field(None)
+    status:       str | None = Field(None, example="valid")
+    full_name:    str | None = Field(None, example="JOHN DOE")
 
 
 class BulkFileError(BaseModel):

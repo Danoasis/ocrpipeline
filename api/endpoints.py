@@ -3,13 +3,12 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import List
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from api.schemas import BulkUploadResult, ErrorResponse, LicenseResult, ResultSummary
 from app.config import ALLOWED_EXTENSIONS, OUTPUT_FOLDER
 from app.pipeline import process_license, save_result
-from api.schemas import BulkUploadResult, ErrorResponse, LicenseResult, ResultSummary
 
 router = APIRouter()
 
@@ -23,7 +22,9 @@ async def upload_license(file: UploadFile = File(...)):
             detail=f"File type '{suffix}' not supported. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:
-        tmp.write(await file.read()); tmp.flush(); tmp.close()
+        tmp.write(await file.read())
+        tmp.flush()
+        tmp.close()
         try:
             result = process_license(tmp.name)
         except Exception as e:
@@ -35,12 +36,14 @@ async def upload_license(file: UploadFile = File(...)):
 
 
 @router.post("/upload/bulk", response_model=BulkUploadResult, summary="Upload multiple images")
-async def upload_bulk(files: List[UploadFile] = File(...)):
+async def upload_bulk(files: list[UploadFile] = File(...)):
     if not files:
         raise HTTPException(status_code=400, detail="No files provided.")
     if len(files) > 50:
         raise HTTPException(status_code=400, detail="Maximum batch size is 50 files.")
-    results: List[dict] = []; errors: List[dict] = []; skipped: List[dict] = []
+    results: list[dict] = []
+    errors:  list[dict] = []
+    skipped: list[dict] = []
     for file in files:
         suffix = Path(file.filename).suffix.lower()
         if suffix not in ALLOWED_EXTENSIONS:
@@ -48,7 +51,9 @@ async def upload_bulk(files: List[UploadFile] = File(...)):
             continue
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         try:
-            tmp.write(await file.read()); tmp.flush(); tmp.close()
+            tmp.write(await file.read()) 
+            tmp.flush()
+            tmp.close()
             result = process_license(tmp.name)
             save_result(file.filename, result)
             result["filename"] = file.filename
@@ -62,7 +67,7 @@ async def upload_bulk(files: List[UploadFile] = File(...)):
         skipped=len(skipped), results=results, errors=errors, skipped_files=skipped)
 
 
-@router.get("/results", response_model=List[ResultSummary])
+@router.get("/results", response_model=list[ResultSummary])
 async def list_results():
     output_path = Path(OUTPUT_FOLDER)
     if not output_path.exists():

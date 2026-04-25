@@ -1,5 +1,6 @@
 import json
 from unittest.mock import MagicMock, patch
+
 from app.llm import extract_structured_data, repair_json
 
 

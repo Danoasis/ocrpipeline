@@ -8,9 +8,11 @@ Docs:
   http://localhost:8000/docs
 """
 from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+
 from api.endpoints import router
 from app.config import INPUT_FOLDER, OUTPUT_FOLDER
 

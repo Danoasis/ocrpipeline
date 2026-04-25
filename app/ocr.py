@@ -3,6 +3,7 @@ ocr.py — EasyOCR text extraction.
 Reader is initialised once at module load to avoid reloading the model on every call.
 """
 import easyocr
+
 from app.config import USE_GPU
 
 reader = easyocr.Reader(["en"], gpu=USE_GPU)

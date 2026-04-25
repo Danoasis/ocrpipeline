@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 from unittest.mock import patch
-from app.pipeline import process_license, run_pipeline
 
+from app.pipeline import process_license, run_pipeline
 
 MOCK_RESULT = {
     "extracted_fields": {
@@ -27,7 +27,8 @@ def test_process_license(mock_ocr, mock_llm):
 def test_run_pipeline_saves_results(mock_ocr, mock_llm, tmp_path, monkeypatch):
     input_dir  = tmp_path / "licenses"
     output_dir = tmp_path / "results"
-    input_dir.mkdir(); output_dir.mkdir()
+    input_dir.mkdir()
+    output_dir.mkdir()
     (input_dir / "test.png").write_bytes(b"fake image data")
 
     monkeypatch.setattr("app.pipeline.INPUT_FOLDER",  str(input_dir))

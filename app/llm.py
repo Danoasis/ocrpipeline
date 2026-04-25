@@ -7,7 +7,9 @@ Fixes:
 """
 import json
 import re
+
 import requests
+
 from app.config import OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_URL
 
 SYSTEM_PROMPT = """You are a data extraction assistant. Given raw OCR text from a driver's license, return ONLY a valid JSON object — no markdown, no backticks, no explanation.

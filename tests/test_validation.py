@@ -1,6 +1,9 @@
 from datetime import date, timedelta
+
 import pytest
+
 from app.validation import check_expiration
+
 
 def days_from_today(n):
     return (date.today() + timedelta(days=n)).isoformat()
