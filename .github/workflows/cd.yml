@@ -10,6 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   ECR_REGISTRY:   ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
   ECR_REPOSITORY: ocrpipeline
   K8S_NAMESPACE:  ocrpipeline
@@ -44,6 +45,10 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.uri }}
             ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+          buil-args: |
+            BASE_IMAGE=python:3.11-slim
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:cache
+          cache-to:   type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:cache,mode=max
 
   deploy:
     name: Deploy to EKS
@@ -58,7 +63,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Configure kubectl
-        run: aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME }}
+        run: aws eks update-kubeconfig \
+              --region ${{ secrets.AWS_REGION }} \
+              --name ${{ secrets.EKS_CLUSTER_NAME }}
       - name: Deploy
         run: |
           kubectl set image deployment/${{ env.K8S_DEPLOYMENT }} \
@@ -66,3 +73,22 @@ jobs:
             --namespace ${{ env.K8S_NAMESPACE }}
           kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT }} \
             --namespace ${{ env.K8S_NAMESPACE }} --timeout=5m
+      - name: Annotate deployment
+        run: |
+          kubectl annotate deployment/${{ env.K8S_DEPLOYMENT }} \
+            --namespace ${{ env.K8S_NAMESPACE }} --overwrite \
+            deployment.kubernetes.io/sha="${{ github.sha }}" \
+            deployment.kubernetes.io/actor="${{ github.actor }}"
+
+  notify-failure:
+    name: Notify on failure
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy]
+    if: failure()
+    steps:
+      - name: Write failure summary
+        run: |
+          echo "## ❌ Deployment failed"      >> $GITHUB_STEP_SUMMARY
+          echo "Commit: ${{ github.sha }}"    >> $GITHUB_STEP_SUMMARY
+          echo "Actor:  ${{ github.actor }}"  >> $GITHUB_STEP_SUMMARY
+

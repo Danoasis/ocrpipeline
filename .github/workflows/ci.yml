@@ -48,14 +48,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch Dockerfile for CPU build in CI
-        run: |
-          sed -i 's|FROM nvidia/cuda:.*|FROM python:3.11-slim|' Dockerfile
-          sed -i '/^ENV DEBIAN_FRONTEND/d' Dockerfile
-          sed -i '/^ENV TZ/d' Dockerfile
-      - name: Build Docker image
+ 
+      # Pass BASE_IMAGE=python:3.11-slim so the build uses the CPU base.
+      # The Dockerfile default (nvidia/cuda) only applies when no arg is passed —
+      # i.e. when you run docker compose locally on your GPU machine.
+      # No sed, no file patching — the Dockerfile handles both cases natively.
+      - name: Build Docker image (CPU variant for CI)
         uses: docker/build-push-action@v5
         with:
           context: .
           push: false
           tags: ocrpipeline:ci
+          build-args: |
+            BASE_IMAGE=python:3.11-slim
