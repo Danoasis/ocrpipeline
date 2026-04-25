@@ -1,0 +1,21 @@
+---
+- name: Baseline configuration
+  hosts: all
+  become: true
+  roles:
+    - role: common
+      tags: [common]
+
+- name: Install Docker
+  hosts: dev:ci_runners
+  become: true
+  roles:
+    - role: docker
+      tags: [docker]
+
+- name: Install Ollama
+  hosts: dev
+  become: true
+  roles:
+    - role: ollama
+      tags: [ollama]

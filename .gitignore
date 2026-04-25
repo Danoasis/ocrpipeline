@@ -1,0 +1,29 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Secrets
+.env
+*.tfvars
+
+# Pipeline data (may contain PII)
+licenses/
+results/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+crash.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp

@@ -1,0 +1,9 @@
+easyocr
+requests
+python-dotenv
+fastapi
+uvicorn[standard]
+python-multipart
+pytest
+pytest-asyncio
+ruff

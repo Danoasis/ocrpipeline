@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ocrpipeline-config
+  namespace: ocrpipeline
+data:
+  OLLAMA_URL:     "http://ollama:11434/api/chat"
+  OLLAMA_MODEL:   "llama3.2"
+  OLLAMA_TIMEOUT: "60"
+  USE_GPU:        "false"
+  INPUT_FOLDER:   "/data/licenses"
+  OUTPUT_FOLDER:  "/data/results"

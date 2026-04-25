@@ -1,0 +1,59 @@
+services:
+  api:
+    build: .
+    container_name: ocrpipeline_api
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_URL=http://host.docker.internal:11434/api/chat
+      - OLLAMA_MODEL=llama3.2
+      - OLLAMA_TIMEOUT=60
+      - USE_GPU=true
+      - INPUT_FOLDER=licenses/
+      - OUTPUT_FOLDER=results/
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - .:/app
+      - ./licenses:/app/licenses
+      - ./results:/app/results
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  pipeline:
+    build: .
+    container_name: ocrpipeline_batch
+    command: python main.py
+    environment:
+      - OLLAMA_URL=http://host.docker.internal:11434/api/chat
+      - OLLAMA_MODEL=llama3.2
+      - OLLAMA_TIMEOUT=60
+      - USE_GPU=true
+      - INPUT_FOLDER=licenses/
+      - OUTPUT_FOLDER=results/
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ./licenses:/app/licenses
+      - ./results:/app/results
+    restart: "no"

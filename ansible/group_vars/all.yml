@@ -1,0 +1,7 @@
+system_timezone: "UTC"
+system_packages: [curl, git, vim, htop, unzip, jq]
+docker_version:  "24.0"
+docker_users:    ["{{ ansible_user }}"]
+ollama_version:  "latest"
+ollama_model:    "llama3.2"
+ollama_service_port: 11434

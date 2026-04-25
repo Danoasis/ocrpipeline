@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OCR License Pipeline</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 16px; }
+    .container { width: 100%; max-width: 800px; display: flex; flex-direction: column; gap: 28px; }
+    header h1 { font-size: 1.6rem; font-weight: 700; color: #f8fafc; }
+    header p  { margin-top: 6px; font-size: 0.9rem; color: #94a3b8; }
+    .upload-zone { border: 2px dashed #334155; border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: #6366f1; background: #1e1b4b22; }
+    .upload-zone .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .upload-zone p { color: #94a3b8; font-size: 0.9rem; }
+    .upload-zone strong { color: #6366f1; }
+    .upload-zone .hint { margin-top: 8px; font-size: 0.78rem; color: #475569; }
+    #file-input { display: none; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; border: none; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+    .btn-ghost { background: #1e293b; color: #94a3b8; }
+    .btn-ghost:hover:not(:disabled) { background: #273449; }
+    .action-bar { display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+    .action-bar.visible { display: flex; }
+    .queued-label { font-size: 0.85rem; color: #94a3b8; }
+    .queued-label span { color: #e2e8f0; font-weight: 600; }
+    .queue-section { display: none; flex-direction: column; gap: 8px; }
+    .queue-section.visible { display: flex; }
+    .section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 4px; }
+    .queue-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #1e293b; border-radius: 8px; font-size: 0.88rem; }
+    .queue-item .qi-icon { font-size: 1.1rem; flex-shrink: 0; width: 24px; text-align: center; }
+    .queue-item .qi-name { flex: 1; color: #e2e8f0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-spinner { width: 16px; height: 16px; border: 2px solid #334155; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .badge { padding: 3px 10px; border-radius: 99px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .badge.waiting       { background: #1e293b;  color: #475569; border: 1px solid #334155; }
+    .badge.processing    { background: #1e1b4b;  color: #a5b4fc; }
+    .badge.valid         { background: #14532d;  color: #86efac; }
+    .badge.expiring_soon { background: #713f12;  color: #fcd34d; }
+    .badge.expired       { background: #7f1d1d;  color: #fca5a5; }
+    .badge.unknown       { background: #1e3a5f;  color: #93c5fd; }
+    .badge.error         { background: #450a0a;  color: #fca5a5; }
+    .badge.skipped       { background: #292524;  color: #78716c; }
+    .summary-bar { display: none; padding: 16px 20px; background: #1e293b; border-radius: 10px; gap: 24px; flex-wrap: wrap; align-items: center; }
+    .summary-bar.visible { display: flex; }
+    .summary-stat { display: flex; flex-direction: column; gap: 2px; }
+    .summary-stat .num { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; }
+    .summary-stat .lbl { font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
+    .summary-stat .num.green  { color: #86efac; }
+    .summary-stat .num.red    { color: #fca5a5; }
+    .summary-stat .num.yellow { color: #fcd34d; }
+    .result-card { display: none; flex-direction: column; background: #1e293b; border-radius: 12px; overflow: hidden; }
+    .result-card.visible { display: flex; }
+    .result-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+    .result-header.valid         { background: #14532d; }
+    .result-header.expiring_soon { background: #713f12; }
+    .result-header.expired       { background: #7f1d1d; }
+    .result-header.unknown, .result-header.error { background: #1e3a5f; }
+    .result-header .status-text { font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .result-header .days { font-size: 0.85rem; opacity: 0.8; }
+    .result-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .field-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #334155; font-size: 0.9rem; }
+    .field-row:last-child { border-bottom: none; }
+    .field-label { color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; font-weight: 600; }
+    .field-value { color: #f1f5f9; font-weight: 500; }
+    .field-value.null-value { color: #475569; font-style: italic; }
+    .reason { padding: 12px 16px; background: #0f172a; border-radius: 6px; font-size: 0.85rem; color: #94a3b8; }
+    .error-card { display: none; padding: 16px 20px; background: #7f1d1d33; border: 1px solid #7f1d1d; border-radius: 8px; color: #fca5a5; font-size: 0.9rem; }
+    .error-card.visible { display: block; }
+    .history-list { display: flex; flex-direction: column; gap: 8px; }
+    .history-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #1e293b; border-radius: 8px; cursor: pointer; transition: background 0.15s; font-size: 0.88rem; }
+    .history-item:hover { background: #273449; }
+    .history-item .name { font-weight: 600; color: #e2e8f0; }
+    .history-item .meta { font-size: 0.78rem; color: #64748b; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🪪 OCR License Pipeline</h1>
+    <p>Upload one or more driver's license images to extract and validate their data.</p>
+  </header>
+  <div class="upload-zone" id="upload-zone">
+    <div class="icon">📂</div>
+    <p><strong>Click to browse</strong> or drag and drop images here</p>
+    <p class="hint">PNG, JPG, JPEG, BMP, TIFF · Single file or bulk upload</p>
+    <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.bmp,.tiff" multiple />
+  </div>
+  <div class="action-bar" id="action-bar">
+    <p class="queued-label"><span id="queued-count">0</span> file(s) selected</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="clearQueue()">Clear</button>
+      <button class="btn btn-primary" id="process-btn" onclick="processQueue()">Process All</button>
+    </div>
+  </div>
+  <div class="queue-section" id="queue-section">
+    <p class="section-title">Upload queue</p>
+    <div id="queue-list"></div>
+  </div>
+  <div class="summary-bar" id="summary-bar">
+    <div class="summary-stat"><span class="num" id="sum-total">0</span><span class="lbl">Total</span></div>
+    <div class="summary-stat"><span class="num green" id="sum-ok">0</span><span class="lbl">Succeeded</span></div>
+    <div class="summary-stat"><span class="num red" id="sum-fail">0</span><span class="lbl">Failed</span></div>
+    <div class="summary-stat"><span class="num yellow" id="sum-skip">0</span><span class="lbl">Skipped</span></div>
+  </div>
+  <div class="error-card" id="error-card"></div>
+  <div class="result-card" id="result-card">
+    <div class="result-header" id="result-header">
+      <span class="status-text" id="result-status"></span>
+      <span class="days" id="result-days"></span>
+    </div>
+    <div class="result-body">
+      <div id="fields-container"></div>
+      <div class="reason" id="result-reason"></div>
+    </div>
+  </div>
+  <div>
+    <p class="section-title" style="margin-bottom:12px;">Previously processed</p>
+    <div class="history-list" id="history-list"><p style="color:#475569;font-size:0.85rem;">Loading...</p></div>
+  </div>
+</div>
+<script>
+let queuedFiles = [];
+const uploadZone = document.getElementById("upload-zone");
+const fileInput  = document.getElementById("file-input");
+uploadZone.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => { if (fileInput.files.length) addFilesToQueue([...fileInput.files]); fileInput.value = ""; });
+uploadZone.addEventListener("dragover",  e => { e.preventDefault(); uploadZone.classList.add("drag-over"); });
+uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("drag-over"));
+uploadZone.addEventListener("drop", e => { e.preventDefault(); uploadZone.classList.remove("drag-over"); if (e.dataTransfer.files.length) addFilesToQueue([...e.dataTransfer.files]); });
+function addFilesToQueue(files) {
+  const existing = new Set(queuedFiles.map(f => f.name + f.size));
+  queuedFiles.push(...files.filter(f => !existing.has(f.name + f.size)));
+  renderQueue();
+  showEl("action-bar"); showEl("queue-section");
+  document.getElementById("queued-count").textContent = queuedFiles.length;
+}
+function clearQueue() { queuedFiles = []; hide("action-bar"); hide("queue-section"); hide("summary-bar"); document.getElementById("queue-list").innerHTML = ""; }
+function renderQueue() {
+  document.getElementById("queue-list").innerHTML = queuedFiles.map((f, i) => `
+    <div class="queue-item" id="qi-${i}">
+      <span class="qi-icon">🖼️</span>
+      <span class="qi-name" title="${f.name}">${f.name}</span>
+      <span class="qi-badge"><span class="badge waiting">Waiting</span></span>
+    </div>`).join("");
+}
+async function processQueue() {
+  if (!queuedFiles.length) return;
+  document.getElementById("process-btn").disabled = true;
+  hide("result-card"); hide("error-card"); hide("summary-bar");
+  queuedFiles.length === 1 ? await processSingle(queuedFiles[0], 0) : await processBulk();
+  document.getElementById("process-btn").disabled = false;
+  loadHistory();
+}
+async function processSingle(file, index) {
+  setQueueItemState(index, "processing");
+  const fd = new FormData(); fd.append("file", file);
+  try {
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) { setQueueItemState(index, "error", data.detail); showError(data.detail); return; }
+    setQueueItemState(index, data.validation?.status || "unknown");
+    renderResult(data);
+  } catch { setQueueItemState(index, "error", "Network error"); showError("Could not connect to the API."); }
+}
+async function processBulk() {
+  queuedFiles.forEach((_, i) => setQueueItemState(i, "processing"));
+  const fd = new FormData(); queuedFiles.forEach(f => fd.append("files", f));
+  try {
+    const res = await fetch("/api/upload/bulk", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) { queuedFiles.forEach((_, i) => setQueueItemState(i, "error")); showError(data.detail); return; }
+    const rm = {}; const em = {}; const sm = {};
+    (data.results||[]).forEach(r => rm[r.filename] = r);
+    (data.errors||[]).forEach(e => em[e.filename] = e.error);
+    (data.skipped_files||[]).forEach(s => sm[s.filename] = s.reason);
+    queuedFiles.forEach((f, i) => {
+      if      (rm[f.name]) setQueueItemState(i, rm[f.name].validation?.status || "unknown");
+      else if (em[f.name]) setQueueItemState(i, "error",   em[f.name]);
+      else if (sm[f.name]) setQueueItemState(i, "skipped", sm[f.name]);
+      else                 setQueueItemState(i, "unknown");
+    });
+    document.getElementById("sum-total").textContent = data.total;
+    document.getElementById("sum-ok").textContent    = data.succeeded;
+    document.getElementById("sum-fail").textContent  = data.failed;
+    document.getElementById("sum-skip").textContent  = data.skipped;
+    showEl("summary-bar");
+    if (data.results?.length) renderResult(data.results[0]);
+  } catch { queuedFiles.forEach((_, i) => setQueueItemState(i, "error")); showError("Could not connect to the API."); }
+}
+function setQueueItemState(index, status, tooltip) {
+  const item = document.getElementById(`qi-${index}`); if (!item) return;
+  const badgeWrap = item.querySelector(".qi-badge"); const iconEl = item.querySelector(".qi-icon");
+  if (status === "processing") { iconEl.innerHTML = ""; const s = document.createElement("div"); s.className = "mini-spinner"; iconEl.appendChild(s); badgeWrap.innerHTML = `<span class="badge processing">Processing…</span>`; return; }
+  iconEl.innerHTML = "🖼️";
+  const labels = { valid:"Valid", expiring_soon:"Expiring Soon", expired:"Expired", unknown:"Unknown", error:"Error", skipped:"Skipped" };
+  badgeWrap.innerHTML = `<span class="badge ${status}"${tooltip ? ` title="${tooltip}"` : ""}>${labels[status]||status}</span>`;
+}
+function renderResult(data) {
+  const v = data.validation||{}; const f = data.extracted_fields||{}; const s = v.status||"unknown";
+  document.getElementById("result-header").className = `result-header ${s}`;
+  document.getElementById("result-status").textContent = statusLabel(s);
+  document.getElementById("result-days").textContent   = v.days_remaining != null ? `${v.days_remaining} days` : "";
+  document.getElementById("result-reason").textContent = v.reason || "";
+  document.getElementById("fields-container").innerHTML = [
+    ["Full Name","full_name"],["License Number","license_number"],
+    ["Date of Birth","date_of_birth"],["Expiration Date","expiration_date"],["Class","class"]
+  ].map(([label, key]) => {
+    const val = f[key]; const cls = val != null ? "field-value" : "field-value null-value";
+    return `<div class="field-row"><span class="field-label">${label}</span><span class="${cls}">${val??'—'}</span></div>`;
+  }).join("");
+  showEl("result-card");
+}
+async function loadHistory() {
+  try {
+    const items = await (await fetch("/api/results")).json();
+    const list = document.getElementById("history-list");
+    if (!items.length) { list.innerHTML = '<p style="color:#475569;font-size:0.85rem;">No results yet.</p>'; return; }
+    list.innerHTML = items.map(item => `
+      <div class="history-item" onclick="loadResult('${item.filename}')">
+        <div><div class="name">${item.filename.replace(".json","")}</div>
+        <div class="meta">${item.full_name||"Name not found"} · ${item.processed_at?item.processed_at.split("T")[0]:"—"}</div></div>
+        <span class="badge ${item.status||"unknown"}">${statusLabel(item.status)}</span>
+      </div>`).join("");
+  } catch { document.getElementById("history-list").innerHTML = '<p style="color:#475569;font-size:0.85rem;">Could not load history.</p>'; }
+}
+async function loadResult(filename) {
+  hide("result-card"); hide("error-card");
+  try { const res = await fetch(`/api/results/${filename}`); const data = await res.json(); res.ok ? renderResult(data) : showError(data.detail); }
+  catch { showError("Could not connect to the API."); }
+}
+function showEl(id) { document.getElementById(id).classList.add("visible"); }
+function hide(id)   { document.getElementById(id).classList.remove("visible"); }
+function showError(msg) { const el = document.getElementById("error-card"); el.textContent = msg; el.classList.add("visible"); }
+function statusLabel(s) { return {valid:"Valid",expiring_soon:"Expiring Soon",expired:"Expired",unknown:"Unknown",error:"Error",skipped:"Skipped"}[s]||s||"—"; }
+loadHistory();
+</script>
+</body>
+</html>

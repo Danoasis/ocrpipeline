@@ -1,0 +1,14 @@
+variable "aws_region"       { default = "us-east-1" }
+variable "environment"      { default = "production" }
+variable "owner_tag"        { default = "platform-team" }
+variable "vpc_cidr"         { default = "10.0.0.0/16" }
+variable "availability_zones"    { default = ["us-east-1a","us-east-1b"] }
+variable "private_subnet_cidrs"  { default = ["10.0.1.0/24","10.0.2.0/24"] }
+variable "public_subnet_cidrs"   { default = ["10.0.101.0/24","10.0.102.0/24"] }
+variable "cluster_name"          { default = "ocrpipeline" }
+variable "kubernetes_version"    { default = "1.29" }
+variable "node_instance_type"    { default = "t3.medium" }
+variable "node_min_count"        { default = 1 }
+variable "node_max_count"        { default = 3 }
+variable "node_desired_count"    { default = 2 }
+variable "ecr_image_retention_count" { default = 10 }

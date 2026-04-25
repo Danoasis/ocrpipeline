@@ -1,0 +1,10 @@
+aws_region         = "us-east-1"
+environment        = "production"
+owner_tag          = "your-name"
+cluster_name       = "ocrpipeline"
+kubernetes_version = "1.29"
+node_instance_type = "t3.medium"
+node_min_count     = 1
+node_max_count     = 3
+node_desired_count = 2
+ecr_image_retention_count = 10
