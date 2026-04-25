@@ -51,7 +51,7 @@ async def upload_bulk(files: list[UploadFile] = File(...)):
             continue
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         try:
-            tmp.write(await file.read()) 
+            tmp.write(await file.read())
             tmp.flush()
             tmp.close()
             result = process_license(tmp.name)
