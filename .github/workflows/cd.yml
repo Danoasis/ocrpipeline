@@ -1,5 +1,23 @@
 name: CD
 
+# =============================================================================
+# CURRENT STATE — two-phase CD pipeline:
+#
+#   Phase 1 (active now):  build-and-push
+#     Builds the Docker image and pushes to ECR.
+#     Requires: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+#               AWS_REGION, AWS_ACCOUNT_ID secrets set in GitHub.
+#     Does NOT require an EKS cluster to exist.
+#
+#   Phase 2 (activate when EKS is ready): deploy
+#     Currently skipped via "if: false" — change to "if: true"
+#     after running "terraform apply" and confirming the cluster exists.
+#     Requires: EKS_CLUSTER_NAME secret set in GitHub.
+#
+# This prevents the workflow from failing on infrastructure that doesn't
+# exist yet while still validating the build and push steps.
+# =============================================================================
+
 on:
   push:
     branches: [main]
@@ -11,20 +29,21 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # Do NOT put secrets here — they resolve as empty at workflow level.
-  # Non-secret constants are fine here.
   ECR_REPOSITORY: ocrpipeline
   K8S_NAMESPACE:  ocrpipeline
   K8S_DEPLOYMENT: ocrpipeline-api
 
 jobs:
 
+  # ---------------------------------------------------------------------------
+  # Phase 1: Build and push to ECR
+  # ---------------------------------------------------------------------------
   build-and-push:
     name: Build & push to ECR
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.meta.outputs.tag }}
       image_uri: ${{ steps.meta.outputs.uri }}
+      image_tag: ${{ steps.meta.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,50 +55,59 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ secrets.AWS_REGION }}
 
-      # Build ECR_REGISTRY inside the step where secrets are available.
-      # Also compute the image tag from the git commit SHA here.
-      # We write both to GITHUB_OUTPUT so subsequent steps and jobs can use them.
-      - name: Compute image tag and registry URL
+      # Verify credentials work before trying anything else.
+      # If this fails, the secret values are wrong or the IAM user
+      # doesn't have the right permissions.
+      - name: Verify AWS credentials
+        run: aws sts get-caller-identity
+
+      # Build all derived values inside a step where secrets are available.
+      - name: Compute image metadata
         id: meta
         run: |
-          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
           SHORT_SHA="${GITHUB_SHA::7}"
+          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
           IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${SHORT_SHA}"
-          CACHE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:cache"
-          LATEST_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
 
           echo "registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
           echo "tag=${SHORT_SHA}"         >> $GITHUB_OUTPUT
           echo "uri=${IMAGE_URI}"         >> $GITHUB_OUTPUT
-          echo "cache=${CACHE_URI}"       >> $GITHUB_OUTPUT
-          echo "latest=${LATEST_URI}"     >> $GITHUB_OUTPUT
+
+          echo "Will push: ${IMAGE_URI}"
 
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker image
+      - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
             ${{ steps.meta.outputs.uri }}
-            ${{ steps.meta.outputs.latest }}
+            ${{ steps.meta.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
           build-args: |
             BASE_IMAGE=python:3.11-slim
-          cache-from: type=registry,ref=${{ steps.meta.outputs.cache }}
-          cache-to:   type=registry,ref=${{ steps.meta.outputs.cache }},mode=max
 
-      - name: Deployment summary
+      - name: Summary
         run: |
-          echo "✅ Pushed ${{ steps.meta.outputs.uri }}" >> $GITHUB_STEP_SUMMARY
-          echo "Actor: ${{ github.actor }}"              >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Build successful"                          >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ steps.meta.outputs.uri }}\`"   >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}"                  >> $GITHUB_STEP_SUMMARY
 
 
+  # ---------------------------------------------------------------------------
+  # Phase 2: Deploy to EKS
+  # ---------------------------------------------------------------------------
+  # DISABLED until EKS cluster exists.
+  # To enable: change "if: false" to "if: true" after terraform apply.
+  # Also set EKS_CLUSTER_NAME in GitHub Secrets.
+  # ---------------------------------------------------------------------------
   deploy:
     name: Deploy to EKS
     runs-on: ubuntu-latest
     needs: build-and-push
+    if: false   # ← change to "true" after: terraform apply + kubectl cluster-info works
     environment: production
 
     steps:
@@ -117,15 +145,20 @@ jobs:
             deployment.kubernetes.io/sha="${{ github.sha }}" \
             deployment.kubernetes.io/actor="${{ github.actor }}"
 
+      - name: Summary
+        run: |
+          echo "## ✅ Deployed to EKS"                                        >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ needs.build-and-push.outputs.image_uri }}\`" >> $GITHUB_STEP_SUMMARY
+
 
   notify-failure:
     name: Notify on failure
     runs-on: ubuntu-latest
-    needs: [build-and-push, deploy]
+    needs: [build-and-push]
     if: failure()
     steps:
       - name: Write failure summary
         run: |
-          echo "## ❌ Deployment failed"     >> $GITHUB_STEP_SUMMARY
-          echo "Commit: ${{ github.sha }}"   >> $GITHUB_STEP_SUMMARY
-          echo "Actor:  ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "## ❌ CD pipeline failed"     >> $GITHUB_STEP_SUMMARY
+          echo "Commit: ${{ github.sha }}"    >> $GITHUB_STEP_SUMMARY
+          echo "Actor:  ${{ github.actor }}"  >> $GITHUB_STEP_SUMMARY
