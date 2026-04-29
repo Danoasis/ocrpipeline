@@ -9,7 +9,7 @@ You can always override by setting OLLAMA_URL explicitly in your .env file.
 """
 
 import os
-import socket
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,7 +25,6 @@ def _default_ollama_url() -> str:
     This means:
     - venv / plain Python -> /.dockerenv absent -> use localhost
     - docker compose      -> /.dockerenv present -> use host.docker.internal
-    
     """
     in_docker = os.path.exists("/.dockerenv")
     if in_docker:
