@@ -6,7 +6,6 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OLLAMA_URL=http://host.docker.internal:11434/api/chat
       - OLLAMA_MODEL=llama3.2
       - OLLAMA_TIMEOUT=60
       - USE_GPU=true
@@ -38,7 +37,6 @@ services:
     container_name: ocrpipeline_batch
     command: python main.py
     environment:
-      - OLLAMA_URL=http://host.docker.internal:11434/api/chat
       - OLLAMA_MODEL=llama3.2
       - OLLAMA_TIMEOUT=60
       - USE_GPU=true
